@@ -35,8 +35,8 @@ constrained peak detection and robust filtering.
 └── utils/
     ├── load_ecg_raw.m
     ├── get_ecg_features.m
-    └── plot_ecg_features_over_time.m
-
+    └── plot_ecg_features_over_time.m  
+```
 ---
 
 ## MATLAB Version and Toolboxes
@@ -58,6 +58,8 @@ constrained peak detection and robust filtering.
 - `zscore`
 
 No external toolboxes or third-party libraries are required.
+
+---
 
 ## Example Output
 
