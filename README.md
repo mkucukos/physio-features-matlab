@@ -29,12 +29,13 @@ constrained peak detection and robust filtering.
 
 ## Repository Structure
 
+```text
+.
 ├── main.m
 └── utils/
-├── load_ecg_raw.m
-├── get_ecg_features.m
-└── plot_ecg_features_over_time.m
-
+    ├── load_ecg_raw.m
+    ├── get_ecg_features.m
+    └── plot_ecg_features_over_time.m
 
 ---
 
