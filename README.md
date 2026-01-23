@@ -63,7 +63,7 @@ No external toolboxes or third-party libraries are required.
 
 ## Example Output
 
-![Figure 1: Raw ECG and derived ECG features over time](Figure_1.png)
+![Figure 1: Raw ECG and derived ECG features over time](assets/Figure_1.png)
 
 **Figure 1.** Raw ECG waveform and derived ECG features (HR, HRV, LF/HF, SNR)
 computed on fixed-length epochs and visualized as synchronized time series.
