@@ -1,20 +1,22 @@
-function [ecg, fs, label, phys_min, phys_max] = load_ecg_raw(edf_path)
+function [ecg, fs, t_rel, t_abs, label, phys_min, phys_max] = load_ecg_raw(edf_path)
 % LOAD_ECG_RAW
-% Load raw ECG signal and metadata from EDF (MATLAB 2025 compatible)
+% Load raw ECG signal from EDF and reconstruct time
 %
 % Outputs:
-%   ecg       - raw ECG signal (numeric vector)
+%   ecg       - ECG signal (numeric vector, physical units)
 %   fs        - sampling frequency (Hz)
-%   label     - ECG channel label (from edfread)
-%   phys_min  - physical minimum (from edfinfo)
-%   phys_max  - physical maximum (from edfinfo)
+%   t_rel     - relative time (seconds)
+%   t_abs     - absolute time (datetime)
+%   label     - ECG channel label
+%   phys_min  - physical minimum (EDF metadata)
+%   phys_max  - physical maximum (EDF metadata)
 
-%% --- Read signal ---
+%% ---------------- Read signal ----------------
 data = edfread(edf_path);   % timetable
 vars = data.Properties.VariableNames;
-%% fprintf('%s\n', vars{:});
-% Robust ECG channel detection (priority order)
-candidates = ["ECGII", "ECG"];
+
+% Robust ECG channel detection
+candidates = ["ECGII", "ECG", "EKG"];
 idx = [];
 
 for c = candidates
@@ -22,36 +24,52 @@ for c = candidates
     if ~isempty(idx), break; end
 end
 
-assert(~isempty(idx), "ECG channel not found in EDF (edfread)");
+assert(~isempty(idx), "ECG channel not found in EDF");
+
 label = vars{idx};
 
-% Extract ECG (cell-per-second → numeric)
+% Extract ECG (cell-per-record → numeric vector)
 ecg_cell = data.(label);
 ecg_cell = cellfun(@double, ecg_cell, 'UniformOutput', false);
 ecg = vertcat(ecg_cell{:});
 
-% Sampling rate = samples per EDF record (usually 1 second)
+% Sampling frequency = samples per record (EDF record = 1 sec)
 fs = numel(ecg_cell{1});
 
 % Sanity check
 assert(all(cellfun(@numel, ecg_cell) == fs), ...
     "Inconsistent sampling rate across EDF records");
 
-%% --- Read metadata (DIRECTLY via edfinfo) ---
-info = edfinfo(edf_path);
+N = numel(ecg);
 
-% IMPORTANT:
-% edfread variable order == edfinfo.SignalLabels order
-% so we use *idx* directly, NOT string matching
-assert(idx <= numel(info.SignalLabels), ...
-    "ECG index exceeds metadata channel count");
+%% ---------------- Read EDF metadata ----------------
+info = edfinfo(edf_path);
 
 phys_min = info.PhysicalMin(idx);
 phys_max = info.PhysicalMax(idx);
 
-%% --- Report ---
-fprintf("Loaded %s | fs = %.1f Hz | samples = %d\n", ...
-        label, fs, numel(ecg));
-fprintf("ECG limits: %.1f to %.1f\n", phys_min, phys_max);
+%% ---------------- Time reconstruction (FIXED) ----------------
+% EDF date/time are STRINGS → must parse explicitly
+
+date_str = info.StartDate;   % e.g. "16.12.22"
+time_str = info.StartTime;   % e.g. "21.46.01"
+
+start_dt = datetime( ...
+    date_str + " " + time_str, ...
+    'InputFormat', 'dd.MM.yy HH.mm.ss' ...
+);
+
+% Relative time (seconds)
+t_rel = (1:N)' / fs;
+
+% Absolute time (datetime)
+t_abs = start_dt + seconds(t_rel);
+
+%% ---------------- Report ----------------
+fprintf("Loaded %s\n", label);
+fprintf("Sampling rate: %.1f Hz\n", fs);
+fprintf("Samples: %d (%.2f hours)\n", N, N/fs/3600);
+fprintf("Start time: %s\n", datestr(start_dt));
+fprintf("ECG limits: %.2f to %.2f\n", phys_min, phys_max);
 
 end
