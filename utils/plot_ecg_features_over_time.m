@@ -12,7 +12,6 @@ function plot_ecg_features_over_time(ecg, fs, epoch_len, phys_min, phys_max, t_a
 
 %% ========================= DEBUG SETUP =========================
 DEBUG = true;
-
 debug.flat_epochs = [];
 debug.nan_epochs  = [];
 debug.feat_errors = {};
@@ -51,11 +50,8 @@ for k = 1:n_epochs
     e = k*samples_per_epoch;
     seg = ecg(s:e);
 
-    % ---- Basic signal sanity checks ----
     if all(seg == 0) || std(seg,'omitnan') < 1e-6
-        if DEBUG
-            debug.flat_epochs(end+1) = k; %#ok<AGROW>
-        end
+        if DEBUG, debug.flat_epochs(end+1) = k; end
         continue
     end
 
@@ -63,9 +59,7 @@ for k = 1:n_epochs
         feats = get_ecg_features(seg, fs);
 
         if any(isnan(feats))
-            if DEBUG
-                debug.nan_epochs(end+1) = k; %#ok<AGROW>
-            end
+            if DEBUG, debug.nan_epochs(end+1) = k; end
             continue
         end
 
@@ -79,9 +73,7 @@ for k = 1:n_epochs
     catch ME
         if DEBUG
             debug.feat_errors{end+1} = struct( ...
-                'epoch', k, ...
-                'message', ME.message ...
-            ); %#ok<AGROW>
+                'epoch', k, 'message', ME.message);
         end
         continue
     end
@@ -91,21 +83,12 @@ end
 if DEBUG
     fprintf('\n===== ECG FEATURE DEBUG SUMMARY =====\n');
     fprintf('Total epochs: %d\n', n_epochs);
-    fprintf('Flat / zero epochs: %d (%.1f%%)\n', ...
-        numel(debug.flat_epochs), 100*numel(debug.flat_epochs)/n_epochs);
+    fprintf('Flat / zero epochs: %d\n', numel(debug.flat_epochs));
     fprintf('NaN feature epochs: %d\n', numel(debug.nan_epochs));
     fprintf('Feature errors: %d\n', numel(debug.feat_errors));
-
-    if ~isempty(debug.flat_epochs)
-        fprintf('First flat epoch: %d\n', debug.flat_epochs(1));
-    end
-    if ~isempty(debug.nan_epochs)
-        fprintf('First NaN epoch: %d\n', debug.nan_epochs(1));
-    end
     if ~isempty(debug.feat_errors)
         fprintf('First feature error (epoch %d):\n%s\n', ...
-            debug.feat_errors{1}.epoch, ...
-            debug.feat_errors{1}.message);
+            debug.feat_errors{1}.epoch, debug.feat_errors{1}.message);
     end
 end
 
@@ -120,26 +103,18 @@ SNR     = medfilt1(SNR,k,'omitnan','truncate');
 
 %% ========================= FIGURE 1 =========================
 fig1 = figure('Color','w','Position',[100 60 1500 1300]);
-
 left = 0.07; width = 0.90; h = 0.085; gap = 0.015; y = 0.92;
 ax = gobjects(8,1);
 
 ax(1) = axes('Position',[left y width h]); y=y-h-gap;
 plot(t_abs, ecg,'k','LineWidth',0.3)
-
-% Robust ECG limits
 if ~isfinite(phys_min) || ~isfinite(phys_max) || phys_min >= phys_max
-    ecg_valid = ecg(isfinite(ecg));
-    yl = prctile(ecg_valid,[1 99]);
+    yl = prctile(ecg(isfinite(ecg)),[1 99]);
     if diff(yl)==0, yl = yl + [-1 1]; end
 else
     yl = [0.3*phys_min 0.3*phys_max];
 end
-ylim(yl)
-
-ylabel('ECG')
-title('ECG, HRV Features, and MWT Hypnogram')
-grid on
+ylim(yl); ylabel('ECG'); title('ECG, HRV Features, and MWT Hypnogram'); grid on
 
 labels = {'HR (bpm)','RMSSD (ms)','SDNN (ms)','HF','LF/HF','SNR (dB)'};
 data   = {HR_mean, RMSSD, SDNN, HF, LFHF, SNR};
@@ -156,62 +131,46 @@ end
 ax(8) = axes('Position',[left 0.06 width 0.18]); hold on
 sleep_tbl = sortrows(sleep_tbl,'t_abs');
 plot_stage = sleep_tbl.Stage;
-plot_stage(plot_stage == "?") = "";
+plot_stage(plot_stage=="?") = "";
 
 stages = ["AWAKE","STAGE 1","STAGE 2","STAGE 3","REM","UNSURE"];
-stage_present = intersect(stages, unique(plot_stage,'stable'), 'stable');
-stage_map = containers.Map(stage_present, 1:numel(stage_present));
-
-stage_colors = containers.Map(stages, { ...
-    [0.55 0.55 0.55], ...
-    [0.30 0.75 0.93], ...
-    [0.00 0.45 0.74], ...
-    [0.00 0.20 0.50], ...
-    [0.80 0.40 0.80], ...
-    [0.95 0.70 0.40] });
+stage_present = intersect(stages, unique(plot_stage,'stable'),'stable');
+stage_map = containers.Map(stage_present,1:numel(stage_present));
+colors = containers.Map(stages,{[.55 .55 .55],[.3 .75 .93],[0 .45 .74],[0 .2 .5],[.8 .4 .8],[.95 .7 .4]});
 
 for i = 1:height(sleep_tbl)-1
     st = plot_stage(i);
-    if ~isKey(stage_map, st), continue; end
-    plot([sleep_tbl.t_abs(i) sleep_tbl.t_abs(i+1)], ...
-         [stage_map(st) stage_map(st)], ...
-         'LineWidth',6,'Color',stage_colors(st));
-end
-
-set(gca,'YDir','reverse')
-yticks(1:numel(stage_present))
-yticklabels(stage_present)
-xlabel('Clock Time'); ylabel('Stage')
-grid on; box on
-
-linkaxes(ax,'x')
-ax(end).XAxis.TickLabelFormat = 'dd-MMM HH:mm';
-
-%% ========================= FIGURE 2 =========================
-fig2 = figure('Color','w','Position',[200 200 1400 420]);
-plot(epoch_time, HR_mean,'k','LineWidth',1.1); hold on
-
-epoch_stage = strings(n_epochs,1);
-for i = 1:n_epochs
-    idx = find(sleep_tbl.t_abs <= epoch_time(i),1,'last');
-    if ~isempty(idx)
-        epoch_stage(i) = sleep_tbl.Stage(idx);
+    if isKey(stage_map,st)
+        plot([sleep_tbl.t_abs(i) sleep_tbl.t_abs(i+1)], ...
+             [stage_map(st) stage_map(st)], ...
+             'LineWidth',6,'Color',colors(st));
     end
 end
+set(gca,'YDir','reverse'); yticks(1:numel(stage_present));
+yticklabels(stage_present); grid on; box on
+linkaxes(ax,'x'); ax(end).XAxis.TickLabelFormat='dd-MMM HH:mm';
 
-valid = epoch_stage ~= "" & epoch_stage ~= "?" & epoch_stage ~= "UNSURE";
+%% ========================= FIGURE 2 =========================
+fig2 = figure('Color','w','Position',[200 200 1400 420]); hold on
+
+epoch_stage = strings(n_epochs,1);
+for i=1:n_epochs
+    idx = find(sleep_tbl.t_abs<=epoch_time(i),1,'last');
+    if ~isempty(idx), epoch_stage(i)=sleep_tbl.Stage(idx); end
+end
+
+valid = epoch_stage~="" & epoch_stage~="?" & epoch_stage~="UNSURE";
 trial_blocks = find_contiguous_blocks(valid);
+yl = [min(HR_mean)-2 max(HR_mean)+2];
+ylim(yl)
 
-yl = ylim;
-dip_vals = [];
-trial_id = 0;
+dip_vals = []; trial_id = 0;
 
 for t = 1:size(trial_blocks,1)
     idx_trial = trial_blocks(t,1):trial_blocks(t,2);
-    is_awake = epoch_stage(idx_trial) == "AWAKE";
+    is_awake = epoch_stage(idx_trial)=="AWAKE";
     d = diff([false; is_awake; false]);
-    s = find(d==1,1,'first');
-    e = find(d==-1,1,'first')-1;
+    s = find(d==1,1,'first'); e = find(d==-1,1,'first')-1;
     if isempty(s) || (e-s+1)<5, continue; end
 
     baseline_idx = idx_trial(s:e);
@@ -219,34 +178,39 @@ for t = 1:size(trial_blocks,1)
     HR_trial = median(HR_mean(idx_trial),'omitnan');
     dHR = 100*(HR_base - HR_trial)/HR_base;
 
-    trial_id = trial_id + 1;
-    dip_vals(end+1) = dHR; %#ok<AGROW>
+    trial_id = trial_id+1; dip_vals(end+1)=dHR;
 
+    % ---- Trial shading (blue)
+    patch([epoch_time(idx_trial(1)) epoch_time(idx_trial(end)) ...
+           epoch_time(idx_trial(end)) epoch_time(idx_trial(1))], ...
+          [yl(1) yl(1) yl(2) yl(2)], ...
+          [.85 .9 1],'EdgeColor','none','FaceAlpha',0.25);
+
+    % ---- Baseline shading (pink)
     patch([epoch_time(baseline_idx(1)) epoch_time(baseline_idx(end)) ...
            epoch_time(baseline_idx(end)) epoch_time(baseline_idx(1))], ...
           [yl(1) yl(1) yl(2) yl(2)], ...
-          [1 0.85 0.85],'EdgeColor','none','FaceAlpha',0.35);
+          [1 .85 .85],'EdgeColor','none','FaceAlpha',0.35);
+
+    % ---- Baseline HR line
+    plot([epoch_time(baseline_idx(1)) epoch_time(baseline_idx(end))], ...
+         [HR_base HR_base],'--','Color',[.8 0 0],'LineWidth',1.6);
 
     text(mean(epoch_time(idx_trial)), yl(2)-1, ...
         sprintf('T%d (%.1f%%)',trial_id,dHR), ...
         'FontWeight','bold','HorizontalAlignment','center');
 end
 
-mean_dHR = mean(dip_vals,'omitnan');
-title(sprintf('MWT HR Change (Per-Trial Awake Baseline): %.1f%%', mean_dHR))
-ylabel('Heart Rate (bpm)')
-xlabel('Clock Time')
-grid on
+plot(epoch_time, HR_mean,'k','LineWidth',1.1)
+title(sprintf('MWT HR Change (Per-Trial Awake Baseline): %.1f%%',mean(dip_vals,'omitnan')))
+ylabel('Heart Rate (bpm)'); xlabel('Clock Time'); grid on
+ax=gca; ax.XAxis.TickLabelFormat='dd-MMM HH:mm';
 
 %% ---------------- Save figures ----------------
-out_dir = fullfile(pwd,'figures');
-if ~exist(out_dir,'dir'), mkdir(out_dir); end
+out_dir = fullfile(pwd,'figures'); if ~exist(out_dir,'dir'), mkdir(out_dir); end
 ts = datestr(now,'yyyymmdd_HHMMSS');
-
-exportgraphics(fig1, fullfile(out_dir, ...
-    sprintf('MWT_ECG_Features_Overview_%s.png',ts)), 'Resolution',300);
-exportgraphics(fig2, fullfile(out_dir, ...
-    sprintf('MWT_HR_Dipping_%s.png',ts)), 'Resolution',300);
+exportgraphics(fig1,fullfile(out_dir,sprintf('MWT_ECG_Features_%s.png',ts)),'Resolution',300);
+exportgraphics(fig2,fullfile(out_dir,sprintf('MWT_HR_Dipping_%s.png',ts)),'Resolution',300);
 
 fprintf('Figures saved to ./figures/\n');
 fprintf('===== ECG PIPELINE DONE =====\n');
