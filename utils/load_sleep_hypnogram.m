@@ -15,7 +15,7 @@ labels = string(readlines(h_path));
 labels = strtrim(labels);
 labels(labels == "") = [];
 
-%% Map labels to stages
+%% Map labels to stages (MWT-safe)
 stage = strings(size(labels));
 
 stage(labels == "W") = "AWAKE";
@@ -23,7 +23,8 @@ stage(labels == "1") = "STAGE 1";
 stage(labels == "2") = "STAGE 2";
 stage(labels == "3") = "STAGE 3";
 stage(labels == "R") = "REM";
-stage(labels == "U" | labels == "?") = "UNSURE";
+stage(labels == "U") = "UNSURE";
+stage(labels == "?") = "?";   % <-- IMPORTANT: preserve baseline
 
 %% Time vector (30s epochs)
 epoch_len = seconds(30);
