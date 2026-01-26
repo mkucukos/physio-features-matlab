@@ -34,8 +34,11 @@ constrained peak detection and robust filtering.
 ├── main.m
 └── utils/
     ├── load_ecg_raw.m
+    ├── load_sleep_hypnogram.m
     ├── get_ecg_features.m
-    └── plot_ecg_features_over_time.m  
+    ├── plot_sleep_hypnogram.m
+    ├── plot_hr_hrv_by_stage.m
+    └── plot_ecg_features_over_time.m
 ```
 ---
 
@@ -75,30 +78,32 @@ derived autonomic features, sleep staging, and nocturnal dipping behavior.
 **Figure 1.**  
 Raw ECG waveform (top) and epoch-level autonomic features (HR, RMSSD, SDNN,
 HF power, LF/HF ratio, and SNR) computed over fixed-length windows and displayed
-as synchronized time series.  
-The bottom panel shows the sleep hypnogram with color-coded sleep stages
-(AWAKE, N1–N3, REM, UNSURE), aligned to clock time.
+as synchronized time series.
+
+The bottom panel shows an MWT-aware hypnogram, where "?" epochs are treated
+as baseline periods and subsequent epochs represent MWT trials with sleep
+or wake stages (AWAKE, STAGE 1–3, REM, UNSURE).
 
 This figure provides a holistic overview of signal quality, autonomic dynamics,
-and sleep architecture across the full overnight recording.
+and trial structure across the full recording.
 
 ---
 
-### Figure 2. Sleep Hypnogram
+### Figure 2. MWT Hypnogram (Baseline vs Trials)
 
 ![Figure 2](assets/Figure2.png)
 
 **Figure 2.**  
-Sleep hypnogram derived from PSG annotations and plotted as a stage-resolved
-timeline. Each sleep stage is represented by a distinct color and displayed
-against absolute clock time.
+MWT hypnogram derived from PSG annotations and plotted as a stage-resolved
+timeline. Baseline periods ("?") are explicitly labeled as BASELINE, while
+trial periods are shown by sleep stage.
 
-This visualization highlights sleep continuity, fragmentation, and transitions
-between wake, NREM, and REM stages.
+This visualization highlights the block structure of the MWT protocol,
+where baseline segments precede each trial.
 
 ---
 
-### Figure 3. Heart Rate and HRV by Sleep Stage
+### Figure 3. Block-wise Heart Rate Change During MWT
 
 ![Figure 3](assets/Figure3.png)
 
@@ -112,18 +117,27 @@ REM) and are suitable for group-level aggregation in downstream analyses.
 
 ---
 
-### Figure 4. Nocturnal Heart Rate Dipping
+### Figure 4. Heart Rate and HRV by MWT Stage
 
 ![Figure 4](assets/Figure4.png)
 
 **Figure 4.**  
-Nocturnal heart rate trajectory with the AWAKE baseline shown as a dashed line.
-Sleep periods are shaded according to sleep stage, enabling direct visual
-association between autonomic changes and sleep architecture.
 
-The title reports the computed nocturnal HR dipping percentage, supporting
-classification into dipper, reduced dipper, or non-dipper phenotypes.
+Distribution of heart rate (left) and HRV (RMSSD; right) across MWT stages,
+including BASELINE, AWAKE, and sleep stages. Each point represents an
+epoch-level estimate, overlaid with boxplots to summarize central tendency and
+variability.
 
+These plots support stage-resolved autonomic comparisons and are suitable for
+within-subject or group-level analyses.
+
+
+## Methodological Notes (MWT-Specific)
+
+- Baseline periods are identified using `"?"` annotations in the hypnogram.
+- Each baseline block is paired exclusively with the **immediately following MWT trial**, yielding block-wise heart rate (HR) change estimates.
+- Baseline–trial comparisons are strictly confined within each block and never span multiple baseline–trial cycles, ensuring temporal and physiological validity.
+- This block-wise design reflects standard Maintenance of Wakefulness Test (MWT) protocols, which consist of repeated quiet-rest baselines followed by nap opportunities.
 
 ---
 
