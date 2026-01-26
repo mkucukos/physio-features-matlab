@@ -51,7 +51,7 @@ LFHF    = medfilt1(LFHF,k,'omitnan','truncate');
 SNR     = medfilt1(SNR,k,'omitnan','truncate');
 
 %% ========================= FIGURE 1 =========================
-figure('Color','w','Position',[100 60 1500 1050]);
+figure('Color','w','Position',[100 60 1500 1300]);  
 
 left = 0.07; width = 0.90; h = 0.085; gap = 0.015; y = 0.92;
 ax = gobjects(8,1);
