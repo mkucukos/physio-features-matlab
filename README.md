@@ -89,25 +89,11 @@ and trial structure across the full recording.
 
 ---
 
-### Figure 2. MWT Hypnogram (Baseline vs Trials)
+### Figure 2. Block-wise Heart Rate Change During MWT
 
 ![Figure 2](assets/Figure2.png)
 
 **Figure 2.**  
-MWT hypnogram derived from PSG annotations and plotted as a stage-resolved
-timeline. Baseline periods ("?") are explicitly labeled as BASELINE, while
-trial periods are shown by sleep stage.
-
-This visualization highlights the block structure of the MWT protocol,
-where baseline segments precede each trial.
-
----
-
-### Figure 3. Block-wise Heart Rate Change During MWT
-
-![Figure 3](assets/Figure3.png)
-
-**Figure 3.**  
 Distribution of heart rate (left) and HRV (RMSSD; right) across sleep stages.
 Each point represents an epoch-level estimate, overlaid with boxplots to
 summarize central tendency and variability.
@@ -116,6 +102,19 @@ These plots enable stage-resolved autonomic comparisons (e.g., wake vs NREM vs
 REM) and are suitable for group-level aggregation in downstream analyses.
 
 ---
+
+
+### Figure 3. MWT Hypnogram (Baseline vs Trials)
+
+![Figure 3](assets/Figure3.png)
+
+**Figure 3.**  
+MWT hypnogram derived from PSG annotations and plotted as a stage-resolved
+timeline. Baseline periods ("?") are explicitly labeled as BASELINE, while
+trial periods are shown by sleep stage.
+
+This visualization highlights the block structure of the MWT protocol,
+where baseline segments precede each trial.
 
 ### Figure 4. Heart Rate and HRV by MWT Stage
 
