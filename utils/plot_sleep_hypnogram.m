@@ -1,7 +1,7 @@
 function plot_sleep_hypnogram(sleep_tbl)
 % PLOT_SLEEP_HYPNOGRAM
 % MWT hypnogram (TRIALS ONLY)
-% - UNSURE shown as dashed gray
+% - UNSURE shown as dashed
 % - BASELINE ("?") excluded entirely
 
 %% ---------------- Prepare data ----------------
@@ -24,7 +24,7 @@ stage_colors = containers.Map( ...
         [0.00 0.45 0.74], ... % STAGE 2
         [0.00 0.20 0.50], ... % STAGE 3
         [0.80 0.40 0.80], ... % REM
-        [0.95 0.70 0.40]  ... % UNSURE (neutral gray)
+        [0.95 0.70 0.40]  ... % UNSURE
     } ...
 );
 
@@ -33,7 +33,7 @@ stage_y = 1:numel(stage_names);
 stage_map = containers.Map(stage_names, stage_y);
 
 %% ---------------- Plot ----------------
-figure('Color','w','Position',[200 200 1400 300]);
+fig = figure('Color','w','Position',[200 200 1400 300]);
 hold on
 
 for i = 1:height(sleep_tbl)-1
@@ -44,10 +44,9 @@ for i = 1:height(sleep_tbl)-1
 
     lw = 6;
     ls = '-';
-
     if st == "UNSURE"
         lw = 4;
-        ls = '--';   % dashed for uncertainty
+        ls = '--';
     end
 
     plot([sleep_tbl.t_abs(i) sleep_tbl.t_abs(i+1)], ...
@@ -86,4 +85,18 @@ legend(h, stage_names, ...
     'Location','southoutside');
 
 hold off
+
+%% ---------------- SAVE FIGURE ----------------
+out_dir = fullfile(pwd, 'figures');
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
+
+fname = fullfile(out_dir, ...
+    sprintf('MWT_Hypnogram_TrialsOnly_%s.png', ...
+    datestr(now,'yyyymmdd_HHMMSS')));
+
+exportgraphics(fig, fname, 'Resolution', 300);
+fprintf('Saved hypnogram to:\n%s\n', fname);
+
 end

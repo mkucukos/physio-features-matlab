@@ -92,4 +92,15 @@ for m = 1:2
     box on
 end
 
+%% ---------------- Save figure ----------------
+out_dir = fullfile(pwd, 'figures');
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
+
+fname = fullfile(out_dir, ...
+    sprintf('MWT_HR_RMSSD_ByStage_%s.png', datestr(now,'yyyymmdd_HHMMSS')));
+
+exportgraphics(gcf, fname, 'Resolution', 300);
+
 end
