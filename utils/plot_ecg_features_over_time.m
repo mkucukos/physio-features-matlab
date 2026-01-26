@@ -1,6 +1,6 @@
 function plot_ecg_features_over_time(ecg, fs, epoch_len, phys_min, phys_max, t_abs, sleep_tbl)
-% ECG + HRV features + MWT hypnogram + PER-TRIAL baseline HR analysis
-% Baseline is defined locally before each MWT trial ("?")
+% ECG + HRV features + MWT hypnogram + PER-TRIAL HR dipping
+% Baseline = initial contiguous AWAKE period (>=5 epochs) at start of each trial
 
 %% ---------------- Safety ----------------
 ecg   = double(ecg(:));
@@ -14,7 +14,7 @@ samples_per_epoch = fs * epoch_len;
 n_epochs = floor(N / samples_per_epoch);
 
 %% ---------------- Epoch times ----------------
-epoch_centers = round(((0:n_epochs-1) + 0.5) * samples_per_epoch);
+epoch_centers = round(((0:n_epochs-1)+0.5)*samples_per_epoch);
 epoch_centers(epoch_centers < 1) = 1;
 epoch_centers(epoch_centers > N) = N;
 epoch_time = t_abs(epoch_centers);
@@ -58,17 +58,19 @@ ax = gobjects(8,1);
 
 ax(1) = axes('Position',[left y width h]); y=y-h-gap;
 plot(t_abs, ecg,'k','LineWidth',0.3)
-ylabel('ECG'); ylim([0.3*phys_min 0.3*phys_max]); grid on
+ylim([0.3*phys_min 0.3*phys_max])
+ylabel('ECG')
 title('ECG, HRV Features, and MWT Hypnogram')
+grid on
 
 ax(2) = axes('Position',[left y width h]); y=y-h-gap;
-stairs(epoch_time, HR_mean,'LineWidth',1.2); ylabel('HR'); grid on
+stairs(epoch_time, HR_mean,'LineWidth',1.2); ylabel('HR (bpm)'); grid on
 
 ax(3) = axes('Position',[left y width h]); y=y-h-gap;
-stairs(epoch_time, RMSSD,'LineWidth',1.2); ylabel('RMSSD'); grid on
+stairs(epoch_time, RMSSD,'LineWidth',1.2); ylabel('RMSSD (ms)'); grid on
 
 ax(4) = axes('Position',[left y width h]); y=y-h-gap;
-stairs(epoch_time, SDNN,'LineWidth',1.2); ylabel('SDNN'); grid on
+stairs(epoch_time, SDNN,'LineWidth',1.2); ylabel('SDNN (ms)'); grid on
 
 ax(5) = axes('Position',[left y width h]); y=y-h-gap;
 stairs(epoch_time, HF,'LineWidth',1.2); set(gca,'YScale','log')
@@ -78,120 +80,121 @@ ax(6) = axes('Position',[left y width h]); y=y-h-gap;
 stairs(epoch_time, LFHF,'LineWidth',1.2); ylabel('LF/HF'); grid on
 
 ax(7) = axes('Position',[left y width h]); y=y-h-gap;
-stairs(epoch_time, SNR,'LineWidth',1.2); ylabel('SNR'); grid on
+stairs(epoch_time, SNR,'LineWidth',1.2); ylabel('SNR (dB)'); grid on
 
-%% ---------------- Hypnogram (MWT-aware) ----------------
+%% ---------------- Hypnogram (trials only, dynamic stages) ----------------
 ax(8) = axes('Position',[left 0.06 width 0.18]); hold on
 
 sleep_tbl = sortrows(sleep_tbl,'t_abs');
 plot_stage = sleep_tbl.Stage;
-plot_stage(plot_stage == "?") = "BASELINE";
+plot_stage(plot_stage == "?") = "";   % baseline not plotted here
 
-stage_order = ["BASELINE","AWAKE","STAGE 1","STAGE 2","STAGE 3","REM","UNSURE"];
-stage_names = stage_order(ismember(stage_order, unique(plot_stage,'stable')));
-stage_y = 1:numel(stage_names);
+all_stages = ["AWAKE","STAGE 1","STAGE 2","STAGE 3","REM","UNSURE"];
+stage_present = intersect(all_stages, unique(plot_stage,'stable'), 'stable');
 
-stage_map = containers.Map(stage_names, stage_y);
+stage_map = containers.Map(stage_present, 1:numel(stage_present));
 
 stage_colors = containers.Map( ...
-    stage_order, ...
+    ["AWAKE","STAGE 1","STAGE 2","STAGE 3","REM","UNSURE"], ...
     { ...
-        [0.95 0.92 0.85], ...
-        [0.60 0.60 0.60], ...
-        [0.30 0.75 0.93], ...
-        [0.00 0.45 0.74], ...
-        [0.00 0.20 0.50], ...
-        [0.80 0.40 0.80], ...
-        [0.85 0.85 0.85] ...
+        [0.55 0.55 0.55], ...   % AWAKE
+        [0.30 0.75 0.93], ...   % STAGE 1
+        [0.00 0.45 0.74], ...   % STAGE 2
+        [0.00 0.20 0.50], ...   % STAGE 3
+        [0.80 0.40 0.80], ...   % REM
+        [0.95 0.70 0.40]  ...   % UNSURE (light orange)
     });
 
 for i = 1:height(sleep_tbl)-1
     st = plot_stage(i);
-    if isKey(stage_map, st)
-        plot([sleep_tbl.t_abs(i) sleep_tbl.t_abs(i+1)], ...
-             [stage_map(st) stage_map(st)], ...
-             'LineWidth',6,'Color',stage_colors(st));
-    end
+    if ~isKey(stage_map, st), continue; end
+    yv = stage_map(st);
+    plot([sleep_tbl.t_abs(i) sleep_tbl.t_abs(i+1)], ...
+         [yv yv], 'LineWidth',6,'Color',stage_colors(st));
 end
 
-yticks(stage_y)
-yticklabels(stage_names)
-ylim([0.5 numel(stage_names)+0.5])
+yticks(1:numel(stage_present))
+yticklabels(stage_present)
+ylim([0.5 numel(stage_present)+0.5])
 set(gca,'YDir','reverse')
+xlabel('Clock Time')
 ylabel('Stage')
 grid on
+box on
 
 linkaxes(ax,'x')
 xlim([t_abs(1) t_abs(end)])
 ax(end).XAxis.TickLabelFormat = 'dd-MMM HH:mm';
-xlabel('Clock Time')
 
-%% ========================= FIGURE 2: BLOCK-WISE MWT HR CHANGE =========================
+%% ========================= FIGURE 2: PER-TRIAL HR DIPPING =========================
+figure('Color','w','Position',[200 200 1400 420]);
+hold on
+plot(epoch_time, HR_mean,'k','LineWidth',1.1)
 
-% Align stages to epochs
-epoch_stage = strings(numel(epoch_time),1);
-for i = 1:numel(epoch_time)
+% Map stage to epochs
+epoch_stage = strings(n_epochs,1);
+for i = 1:n_epochs
     idx = find(sleep_tbl.t_abs <= epoch_time(i),1,'last');
     if ~isempty(idx)
         epoch_stage(i) = sleep_tbl.Stage(idx);
     end
 end
 
-is_baseline = epoch_stage == "?";
-is_trial    = epoch_stage ~= "?" & epoch_stage ~= "";
-
-% ---- TOOLBOX-FREE contiguous block detection ----
-baseline_blocks = find_contiguous_blocks(is_baseline);
-trial_blocks    = find_contiguous_blocks(is_trial);
-
-figure('Color','w','Position',[200 200 1400 440]);
-hold on
-plot(epoch_time, HR_mean,'k','LineWidth',1.1)
+% Trial epochs (exclude baseline + unsure)
+valid = epoch_stage ~= "" & epoch_stage ~= "?" & epoch_stage ~= "UNSURE";
+trial_blocks = find_contiguous_blocks(valid);
 
 yl = ylim;
 dip_vals = [];
-trial_counter = 0;
+trial_id = 0;
 
-for b = 1:size(baseline_blocks,1)
+for t = 1:size(trial_blocks,1)
+    idx_trial = trial_blocks(t,1):trial_blocks(t,2);
 
-    idx_base = baseline_blocks(b,1):baseline_blocks(b,2);
-    t_base_end = epoch_time(idx_base(end));
+    % --- Initial contiguous AWAKE block
+    is_awake = epoch_stage(idx_trial) == "AWAKE";
+    d = diff([false; is_awake; false]);
+    s = find(d==1,1,'first');
+    e = find(d==-1,1,'first')-1;
 
-    % find first trial after this baseline
-    idx_trial = [];
-    for t = 1:size(trial_blocks,1)
-        cand = trial_blocks(t,1):trial_blocks(t,2);
-        if epoch_time(cand(1)) > t_base_end
-            idx_trial = cand;
-            break
-        end
+    if isempty(s) || (e-s+1) < 5
+        continue
     end
 
-    if isempty(idx_trial), continue; end
-    trial_counter = trial_counter + 1;
-
-    HR_base  = median(HR_mean(idx_base),'omitnan');
+    baseline_idx = idx_trial(s:e);
+    HR_base = median(HR_mean(baseline_idx),'omitnan');
     HR_trial = median(HR_mean(idx_trial),'omitnan');
-    dHR_pct  = 100 * (HR_base - HR_trial) / HR_base;
+
+    dHR_pct = 100 * (HR_base - HR_trial) / HR_base;
+
+    trial_id = trial_id + 1;
     dip_vals(end+1) = dHR_pct; %#ok<AGROW>
 
-    % baseline line
-    plot([epoch_time(idx_base(1)) epoch_time(idx_base(end))], ...
-         [HR_base HR_base], '--', 'Color',[0.85 0 0],'LineWidth',1.6)
+    % Baseline shading
+    patch([epoch_time(baseline_idx(1)) epoch_time(baseline_idx(end)) ...
+           epoch_time(baseline_idx(end)) epoch_time(baseline_idx(1))], ...
+          [yl(1) yl(1) yl(2) yl(2)], ...
+          [1.0 0.85 0.85], 'EdgeColor','none','FaceAlpha',0.35);
 
-    % trial shading
+    % Trial shading
     patch([epoch_time(idx_trial(1)) epoch_time(idx_trial(end)) ...
            epoch_time(idx_trial(end)) epoch_time(idx_trial(1))], ...
           [yl(1) yl(1) yl(2) yl(2)], ...
-          [0.85 0.9 1],'EdgeColor','none','FaceAlpha',0.25)
+          [0.85 0.9 1], 'EdgeColor','none','FaceAlpha',0.25);
 
-    % labels
-    text(mean(epoch_time(idx_base)), HR_base+0.6, sprintf('B%d',b), ...
-        'Color',[0.7 0 0],'FontWeight','bold','HorizontalAlignment','center');
+    % Baseline HR line
+    plot([epoch_time(baseline_idx(1)) epoch_time(baseline_idx(end))], ...
+         [HR_base HR_base],'--','Color',[0.8 0 0],'LineWidth',1.6)
 
-    text(mean(epoch_time(idx_trial)), yl(2)-1.5, ...
-        sprintf('T%d (%.1f%%)',trial_counter,dHR_pct), ...
-        'Color',[0 0.2 0.6],'FontWeight','bold','HorizontalAlignment','center');
+    % Labels
+    text(mean(epoch_time(baseline_idx)), yl(2)-0.6, ...
+        'Awake baseline', 'Color',[0.6 0 0], ...
+        'FontWeight','bold','HorizontalAlignment','center');
+
+    text(mean(epoch_time(idx_trial)), yl(2)-1.8, ...
+        sprintf('T%d (%.1f%%)',trial_id,dHR_pct), ...
+        'Color',[0 0.2 0.6],'FontWeight','bold', ...
+        'HorizontalAlignment','center');
 end
 
 plot(epoch_time, HR_mean,'k','LineWidth',1.1)
@@ -209,8 +212,8 @@ grid on
 xlim([t_abs(1) t_abs(end)])
 ylabel('Heart Rate (bpm)')
 xlabel('Clock Time')
-title(sprintf('MWT HR Change (Block-wise Baseline): %.1f%% (%s)', ...
-      mean_dHR, dip_class))
+title(sprintf('MWT HR Change (Per-Trial Awake Baseline): %.1f%% (%s)', ...
+    mean_dHR, dip_class))
 ax = gca; ax.XAxis.TickLabelFormat = 'dd-MMM HH:mm';
 
 hold off

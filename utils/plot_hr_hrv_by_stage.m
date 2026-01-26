@@ -1,6 +1,8 @@
 function plot_hr_hrv_by_stage(ecg, fs, epoch_len, t_abs, sleep_tbl)
 % PLOT_HR_HRV_BY_STAGE
-% HR and RMSSD grouped by MWT stage (includes BASELINE)
+% HR and RMSSD grouped by MWT stage
+% - BASELINE = initial awake (handled elsewhere)
+% - UNSURE EXCLUDED from all statistics
 
 %% ---------------- Epoching ----------------
 samples_per_epoch = fs * epoch_len;
@@ -34,21 +36,20 @@ for k = 1:n_epochs
     end
 end
 
-% Explicit MWT mapping
-epoch_stage(epoch_stage == "?") = "BASELINE";
+% REMOVE BASELINE AND UNSURE FROM THIS ANALYSIS
+epoch_stage(epoch_stage == "?" | epoch_stage == "UNSURE") = "";
 
 %% ---------------- Stage definitions ----------------
-stage_names = ["BASELINE","AWAKE","STAGE 1","STAGE 2","STAGE 3","REM"];
+stage_names = ["AWAKE","STAGE 1","STAGE 2","STAGE 3","REM"];
 
 stage_colors = containers.Map( ...
     stage_names, ...
     { ...
-        [0.95 0.92 0.85], ... % BASELINE
-        [0.60 0.60 0.60], ... % AWAKE
-        [0.30 0.75 0.93], ... % STAGE 1
-        [0.00 0.45 0.74], ... % STAGE 2
-        [0.00 0.20 0.50], ... % STAGE 3
-        [0.80 0.40 0.80]  ... % REM
+        [0.60 0.60 0.60], ...
+        [0.30 0.75 0.93], ...
+        [0.00 0.45 0.74], ...
+        [0.00 0.20 0.50], ...
+        [0.80 0.40 0.80] ...
     } ...
 );
 
