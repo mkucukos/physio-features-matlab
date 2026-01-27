@@ -1,8 +1,13 @@
-function plot_sleep_hypnogram(sleep_tbl)
+function plot_sleep_hypnogram(sleep_tbl, subject_id)
 % PLOT_SLEEP_HYPNOGRAM
 % MWT hypnogram (TRIALS ONLY)
 % - UNSURE shown as dashed
 % - BASELINE ("?") excluded entirely
+%
+% Output:
+%   Saves:
+%     ./figures/<SUBJECT_ID>/MWT_Hypnogram_TrialsOnly.png
+%   (overwrites if exists)
 
 %% ---------------- Prepare data ----------------
 sleep_tbl = sortrows(sleep_tbl,'t_abs');
@@ -33,7 +38,7 @@ stage_y = 1:numel(stage_names);
 stage_map = containers.Map(stage_names, stage_y);
 
 %% ---------------- Plot ----------------
-fig = figure('Color','w','Position',[200 200 1400 300]);
+fig = figure('Color','w','Position',[200 200 1400 400]);
 hold on
 
 for i = 1:height(sleep_tbl)-1
@@ -42,10 +47,10 @@ for i = 1:height(sleep_tbl)-1
         continue
     end
 
-    lw = 6;
+    lw = 8;
     ls = '-';
     if st == "UNSURE"
-        lw = 4;
+        lw = 8;
         ls = '--';
     end
 
@@ -65,7 +70,7 @@ set(gca,'YDir','reverse')
 xlim([t_start t_end])
 xlabel('Clock Time')
 ylabel('Stage')
-title('MWT Hypnogram (Trials Only)')
+title(sprintf('MWT Hypnogram (Trials Only) – %s', subject_id))
 grid on
 box on
 
@@ -87,16 +92,14 @@ legend(h, stage_names, ...
 hold off
 
 %% ---------------- SAVE FIGURE ----------------
-out_dir = fullfile(pwd, 'figures');
+out_dir = fullfile(pwd, 'figures', subject_id);
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
 
-fname = fullfile(out_dir, ...
-    sprintf('MWT_Hypnogram_TrialsOnly_%s.png', ...
-    datestr(now,'yyyymmdd_HHMMSS')));
+out_file = fullfile(out_dir, 'MWT_Hypnogram_TrialsOnly.png');
+exportgraphics(fig, out_file, 'Resolution', 300);
 
-exportgraphics(fig, fname, 'Resolution', 300);
-fprintf('Saved hypnogram to:\n%s\n', fname);
+fprintf('Saved hypnogram to:\n%s\n', out_file);
 
 end

@@ -1,14 +1,10 @@
-function plot_ecg_features_over_time(ecg, fs, epoch_len, phys_min, phys_max, t_abs, sleep_tbl)
+function plot_ecg_features_over_time(ecg, fs, epoch_len, t_abs, sleep_tbl, subject_id)
 % ECG + HRV features + MWT hypnogram + PER-TRIAL HR dipping
 % Baseline = initial contiguous AWAKE period (>=5 epochs) at start of each trial
 %
-% Outputs:
-%   Saves two PNG figures to ./figures/
-%     1) ECG + features + hypnogram
-%     2) Per-trial HR dipping
-%
-% Debugging:
-%   Prints a summary explaining why features may be missing
+% Saves:
+%   figures/<subject_id>/MWT_ECG_Features.png
+%   figures/<subject_id>/MWT_HR_Dipping.png
 
 %% ========================= DEBUG SETUP =========================
 DEBUG = true;
@@ -27,16 +23,19 @@ assert(isdatetime(t_abs), 't_abs must be datetime');
 samples_per_epoch = fs * epoch_len;
 n_epochs = floor(N / samples_per_epoch);
 
-fprintf('\n===== ECG PIPELINE START =====\n');
+fprintf('\n===== ECG PIPELINE START (%s) =====\n', subject_id);
 fprintf('Total samples: %d (%.2f hours)\n', N, N/fs/3600);
 fprintf('Epoch length: %d s | Epochs: %d\n', epoch_len, n_epochs);
 
 %% ---------------- Epoch times ----------------
+
 epoch_centers = round(((0:n_epochs-1)+0.5)*samples_per_epoch);
 epoch_centers(epoch_centers < 1) = 1;
 epoch_centers(epoch_centers > N) = N;
 epoch_time = t_abs(epoch_centers);
-
+% ---------------- Global time limits (actual data only) ----------------
+xmin = t_abs(find(isfinite(ecg), 1, 'first'));
+xmax = t_abs(find(isfinite(ecg), 1, 'last'));
 %% ---------------- Feature extraction ----------------
 HR_mean = nan(n_epochs,1);
 RMSSD  = nan(n_epochs,1);
@@ -83,11 +82,11 @@ end
 if DEBUG
     fprintf('\n===== ECG FEATURE DEBUG SUMMARY =====\n');
     fprintf('Total epochs: %d\n', n_epochs);
-    fprintf('Flat / zero epochs: %d\n', numel(debug.flat_epochs));
-    fprintf('NaN feature epochs: %d\n', numel(debug.nan_epochs));
+    fprintf('Flat epochs: %d\n', numel(debug.flat_epochs));
+    fprintf('NaN epochs: %d\n', numel(debug.nan_epochs));
     fprintf('Feature errors: %d\n', numel(debug.feat_errors));
     if ~isempty(debug.feat_errors)
-        fprintf('First feature error (epoch %d):\n%s\n', ...
+        fprintf('First error (epoch %d): %s\n', ...
             debug.feat_errors{1}.epoch, debug.feat_errors{1}.message);
     end
 end
@@ -103,18 +102,22 @@ SNR     = medfilt1(SNR,k,'omitnan','truncate');
 
 %% ========================= FIGURE 1 =========================
 fig1 = figure('Color','w','Position',[100 60 1500 1300]);
+
 left = 0.07; width = 0.90; h = 0.085; gap = 0.015; y = 0.92;
 ax = gobjects(8,1);
 
+% ---- Raw ECG ----
 ax(1) = axes('Position',[left y width h]); y=y-h-gap;
 plot(t_abs, ecg,'k','LineWidth',0.3)
-if ~isfinite(phys_min) || ~isfinite(phys_max) || phys_min >= phys_max
-    yl = prctile(ecg(isfinite(ecg)),[1 99]);
-    if diff(yl)==0, yl = yl + [-1 1]; end
-else
-    yl = [0.3*phys_min 0.3*phys_max];
-end
-ylim(yl); ylabel('ECG'); title('ECG, HRV Features, and MWT Hypnogram'); grid on
+
+ecg_valid = ecg(isfinite(ecg));
+yl = [0.5*min(ecg_valid), 0.5*max(ecg_valid)];
+if yl(1) >= yl(2), yl = yl + [-1 1]; end
+ylim(yl)
+
+ylabel('ECG')
+title(sprintf('ECG + HRV Features (%s)', subject_id))
+grid on
 
 labels = {'HR (bpm)','RMSSD (ms)','SDNN (ms)','HF','LF/HF','SNR (dB)'};
 data   = {HR_mean, RMSSD, SDNN, HF, LFHF, SNR};
@@ -143,12 +146,13 @@ for i = 1:height(sleep_tbl)-1
     if isKey(stage_map,st)
         plot([sleep_tbl.t_abs(i) sleep_tbl.t_abs(i+1)], ...
              [stage_map(st) stage_map(st)], ...
-             'LineWidth',6,'Color',colors(st));
+             'LineWidth',10,'Color',colors(st));
     end
 end
 set(gca,'YDir','reverse'); yticks(1:numel(stage_present));
 yticklabels(stage_present); grid on; box on
 linkaxes(ax,'x'); ax(end).XAxis.TickLabelFormat='dd-MMM HH:mm';
+xlim(ax, [xmin xmax])
 
 %% ========================= FIGURE 2 =========================
 fig2 = figure('Color','w','Position',[200 200 1400 420]); hold on
@@ -206,12 +210,13 @@ title(sprintf('MWT HR Change (Per-Trial Awake Baseline): %.1f%%',mean(dip_vals,'
 ylabel('Heart Rate (bpm)'); xlabel('Clock Time'); grid on
 ax=gca; ax.XAxis.TickLabelFormat='dd-MMM HH:mm';
 
-%% ---------------- Save figures ----------------
-out_dir = fullfile(pwd,'figures'); if ~exist(out_dir,'dir'), mkdir(out_dir); end
-ts = datestr(now,'yyyymmdd_HHMMSS');
-exportgraphics(fig1,fullfile(out_dir,sprintf('MWT_ECG_Features_%s.png',ts)),'Resolution',300);
-exportgraphics(fig2,fullfile(out_dir,sprintf('MWT_HR_Dipping_%s.png',ts)),'Resolution',300);
+%% ---------------- SAVE (overwrite) ----------------
+out_dir = fullfile(pwd, 'figures', subject_id);
+if ~exist(out_dir,'dir'), mkdir(out_dir); end
 
-fprintf('Figures saved to ./figures/\n');
+exportgraphics(fig1, fullfile(out_dir,'MWT_ECG_Features.png'),'Resolution',300);
+exportgraphics(fig2, fullfile(out_dir,'MWT_HR_Dipping.png'),'Resolution',300);
+
+fprintf('Figures saved to figures/%s/\n', subject_id);
 fprintf('===== ECG PIPELINE DONE =====\n');
 end
