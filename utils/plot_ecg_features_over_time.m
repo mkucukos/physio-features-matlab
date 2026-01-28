@@ -55,7 +55,7 @@ for k = 1:n_epochs
     end
 
     try
-        feats = get_ecg_features(seg, fs);
+        [feats, ~, ~] = get_ecg_features(seg, fs);
 
         if any(isnan(feats))
             if DEBUG, debug.nan_epochs(end+1) = k; end
@@ -165,8 +165,18 @@ end
 
 valid = epoch_stage~="" & epoch_stage~="?" & epoch_stage~="UNSURE";
 trial_blocks = find_contiguous_blocks(valid);
-yl = [min(HR_mean)-2 max(HR_mean)+2];
+hr_valid = HR_mean(isfinite(HR_mean));
+
+if numel(hr_valid) < 2
+    yl = [40 120];   % physiological fallback (bpm)
+else
+    yl = [min(hr_valid)-2, max(hr_valid)+2];
+    if yl(1) >= yl(2)
+        yl = yl + [-1 1];
+    end
+end
 ylim(yl)
+
 
 dip_vals = []; trial_id = 0;
 

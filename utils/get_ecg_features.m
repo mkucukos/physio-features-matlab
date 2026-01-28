@@ -1,4 +1,4 @@
-function feats = get_ecg_features(ecg, fs)
+function [feats, locs, ecg_clean] = get_ecg_features(ecg, fs)
 % GET_ECG_FEATURES  Toolbox-free ECG + HRV feature extraction
 %
 % Output:
@@ -8,19 +8,29 @@ function feats = get_ecg_features(ecg, fs)
 ecg = double(ecg(:));
 N = numel(ecg);
 if N < fs
-    error("Epoch too short for ECG feature extraction");
+    feats = nan(1,9);
+    locs  = [];
+    ecg_clean = nan(size(ecg));
+    return
 end
 
 t = (0:N-1)' / fs;
 
-%% ---------------- Bandpass 0.25–25 Hz ----------------
-[b,a] = butter(4, [0.25 25] / (fs/2), 'bandpass');
+%% ---------------- Bandpass 0.5–30 Hz ----------------
+[b,a] = butter(4, [0.5 30] / (fs/2), 'bandpass');
 ecg_filt = filtfilt(b, a, ecg);
 
-%% ---------------- NeuroKit-like cleaning ----------------
-ecg_clean = detrend(ecg_filt);
-ecg_clean = smoothdata(ecg_clean, 'movmedian', round(0.2 * fs));
-ecg_clean = smoothdata(ecg_clean, 'movmean',   round(0.05 * fs));
+%% ---------------- QRS-enhanced detection signal ----------------
+% 1) Differentiate → emphasize slope (QRS)
+ecg_clean = diff(ecg_filt);
+ecg_clean(end+1) = ecg_clean(end);   % preserve length
+
+% 2) Square → emphasize energy
+ecg_clean = ecg_clean .^ 2;
+
+% 3) Short integration window → QRS-scale only
+window_int = round(0.08 * fs);        % ~80 ms (QRS duration)
+ecg_clean = smoothdata(ecg_clean, 'movmean', window_int);
 
 %% ---------------- Conservative R-peak detection ----------------
 minPeakDist = round(0.3 * fs);   % ~200 bpm max
@@ -31,18 +41,20 @@ prom = 1.5 * std(ecg_clean, 'omitnan');
     'MinPeakProminence', prom);
 
 if numel(locs) < 3
-    error("No reliable R-peaks detected");
+    feats = nan(1,9);
+    locs  = [];
+    return
 end
 
 %% ---------------- RR intervals ----------------
 rr_times = t(locs);
-rr = diff(rr_times);              % seconds
-rr(rr < 0.3 | rr > 2.0) = NaN;    % physiological bounds
+rr = diff(rr_times);                 % seconds
+rr(rr < 0.3 | rr > 2.0) = NaN;       % physiological bounds
 
 %% ---------------- HR ----------------
 hr = 60 ./ rr;
 
-% robust z-score (toolbox-free)
+% Remove extreme beat-level outliers
 z = abs(zscore_safe(hr));
 hr(z > 10) = NaN;
 
@@ -61,6 +73,40 @@ hrv_rmssd = sqrt(mean(drr.^2, 'omitnan'));
 
 % SDNN
 sdnn = std(rr_ms, 'omitnan');
+
+%% ---------------- Epoch-level physiological sanity check ----------------
+% If HR or HRV is non-physiological → invalidate entire epoch
+
+HR_MIN = 20;    % bpm
+HR_MAX = 200;   % bpm
+
+RMSSD_MIN = 2;    % ms
+RMSSD_MAX = 300;  % ms
+
+SDNN_MIN  = 5;    % ms
+SDNN_MAX  = 300;  % ms
+
+invalid_epoch = false;
+
+% HR sanity
+if ~isfinite(hr_mean) || hr_mean < HR_MIN || hr_mean > HR_MAX
+    invalid_epoch = true;
+end
+
+% HRV sanity
+if ~isfinite(hrv_rmssd) || hrv_rmssd < RMSSD_MIN || hrv_rmssd > RMSSD_MAX
+    invalid_epoch = true;
+end
+
+if ~isfinite(sdnn) || sdnn < SDNN_MIN || sdnn > SDNN_MAX
+    invalid_epoch = true;
+end
+
+if invalid_epoch
+    feats = nan(1,9);
+    locs  = [];
+    return
+end
 
 %% ---------------- HRV (frequency domain) ----------------
 rr_valid = rr_ms(~isnan(rr_ms));
