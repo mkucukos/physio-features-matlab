@@ -5,6 +5,7 @@ function plot_ecg_features_over_time(ecg, fs, epoch_len, t_abs, sleep_tbl, subje
 % Saves:
 %   figures/<subject_id>/MWT_ECG_Features.png
 %   figures/<subject_id>/MWT_HR_Dipping.png
+%   figures/<subject_id>/MWT_ECG_Features_EpochLevel.csv
 
 %% ========================= DEBUG SETUP =========================
 DEBUG = true;
@@ -28,14 +29,15 @@ fprintf('Total samples: %d (%.2f hours)\n', N, N/fs/3600);
 fprintf('Epoch length: %d s | Epochs: %d\n', epoch_len, n_epochs);
 
 %% ---------------- Epoch times ----------------
-
 epoch_centers = round(((0:n_epochs-1)+0.5)*samples_per_epoch);
 epoch_centers(epoch_centers < 1) = 1;
 epoch_centers(epoch_centers > N) = N;
 epoch_time = t_abs(epoch_centers);
+
 % ---------------- Global time limits (actual data only) ----------------
 xmin = t_abs(find(isfinite(ecg), 1, 'first'));
 xmax = t_abs(find(isfinite(ecg), 1, 'last'));
+
 %% ---------------- Feature extraction ----------------
 HR_mean = nan(n_epochs,1);
 RMSSD  = nan(n_epochs,1);
@@ -168,15 +170,13 @@ trial_blocks = find_contiguous_blocks(valid);
 hr_valid = HR_mean(isfinite(HR_mean));
 
 if numel(hr_valid) < 2
-    yl = [40 120];   % physiological fallback (bpm)
+    yl = [40 120];
 else
     yl = [min(hr_valid)-2, max(hr_valid)+2];
-    if yl(1) >= yl(2)
-        yl = yl + [-1 1];
+    if yl(1) >= yl(2), yl = yl + [-1 1];
     end
 end
 ylim(yl)
-
 
 dip_vals = []; trial_id = 0;
 
@@ -194,19 +194,16 @@ for t = 1:size(trial_blocks,1)
 
     trial_id = trial_id+1; dip_vals(end+1)=dHR;
 
-    % ---- Trial shading (blue)
     patch([epoch_time(idx_trial(1)) epoch_time(idx_trial(end)) ...
            epoch_time(idx_trial(end)) epoch_time(idx_trial(1))], ...
           [yl(1) yl(1) yl(2) yl(2)], ...
           [.85 .9 1],'EdgeColor','none','FaceAlpha',0.25);
 
-    % ---- Baseline shading (pink)
     patch([epoch_time(baseline_idx(1)) epoch_time(baseline_idx(end)) ...
            epoch_time(baseline_idx(end)) epoch_time(baseline_idx(1))], ...
           [yl(1) yl(1) yl(2) yl(2)], ...
           [1 .85 .85],'EdgeColor','none','FaceAlpha',0.35);
 
-    % ---- Baseline HR line
     plot([epoch_time(baseline_idx(1)) epoch_time(baseline_idx(end))], ...
          [HR_base HR_base],'--','Color',[.8 0 0],'LineWidth',1.6);
 
@@ -220,13 +217,45 @@ title(sprintf('MWT HR Change (Per-Trial Awake Baseline): %.1f%%',mean(dip_vals,'
 ylabel('Heart Rate (bpm)'); xlabel('Clock Time'); grid on
 ax=gca; ax.XAxis.TickLabelFormat='dd-MMM HH:mm';
 
+%% ========================= SAVE RESULTS TABLE (CSV) =========================
+results_tbl = table( ...
+    (1:n_epochs)', ...
+    epoch_time, ...
+    HR_mean, ...
+    RMSSD, ...
+    SDNN, ...
+    HF, ...
+    LFHF, ...
+    SNR, ...
+    epoch_stage, ...
+    'VariableNames', { ...
+        'Epoch', ...
+        'EpochTime', ...
+        'HR_mean', ...
+        'RMSSD', ...
+        'SDNN', ...
+        'HF', ...
+        'LFHF', ...
+        'SNR_dB', ...
+        'SleepStage' ...
+    });
+
+results_tbl.IsFlatEpoch = false(n_epochs,1);
+results_tbl.IsFlatEpoch(debug.flat_epochs) = true;
+
+results_tbl.IsNaNEpoch = false(n_epochs,1);
+results_tbl.IsNaNEpoch(debug.nan_epochs) = true;
+
 %% ---------------- SAVE (overwrite) ----------------
 out_dir = fullfile(pwd, 'figures', subject_id);
 if ~exist(out_dir,'dir'), mkdir(out_dir); end
 
+writetable(results_tbl, ...
+    fullfile(out_dir,'MWT_ECG_Features_EpochLevel.csv'));
+
 exportgraphics(fig1, fullfile(out_dir,'MWT_ECG_Features.png'),'Resolution',300);
 exportgraphics(fig2, fullfile(out_dir,'MWT_HR_Dipping.png'),'Resolution',300);
 
-fprintf('Figures saved to figures/%s/\n', subject_id);
+fprintf('Results table saved to figures/%s/\n', subject_id);
 fprintf('===== ECG PIPELINE DONE =====\n');
 end
