@@ -1,0 +1,24 @@
+# MATLAB auto-save and backup files
+*.asv
+*.m~
+
+# MATLAB binary data
+*.mat
+
+# Generated figures and outputs
+figures/
+*.csv
+*.log
+
+# Simulink / code generation
+slprj/
+codegen/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

@@ -1,8 +1,8 @@
 # ECG Feature Extraction and Visualization (MATLAB)
 
-This repository contains a MATLAB (2025b-compatible) pipeline for loading raw
-ECG data from EDF files, extracting ECG and HRV features on a per-epoch basis,
-and visualizing both the raw signal and derived features over time.
+A MATLAB (R2025b-compatible) pipeline for loading raw ECG data from EDF files,
+extracting ECG and HRV features on a per-epoch basis, and visualizing both the
+raw signal and derived features over time.
 
 The implementation is designed to be transparent, modular, and aligned with
 common Python/NeuroKit-style ECG processing practices.
@@ -32,14 +32,23 @@ constrained peak detection and robust filtering.
 ```text
 .
 ├── main.m
+├── assets/
+│   ├── Figure1.png
+│   ├── Figure2.png
+│   ├── Figure3.png
+│   └── Figure4.png
 └── utils/
     ├── load_ecg_raw.m
     ├── load_sleep_hypnogram.m
+    ├── load_sleep_stages.m
     ├── get_ecg_features.m
+    ├── find_contiguous_blocks.m
+    ├── debug_plot_ecg_peaks.m
     ├── plot_sleep_hypnogram.m
     ├── plot_hr_hrv_by_stage.m
     └── plot_ecg_features_over_time.m
 ```
+
 ---
 
 ## MATLAB Version and Toolboxes
@@ -53,21 +62,19 @@ constrained peak detection and robust filtering.
 
 **Built-in MATLAB Functions Used:**
 - `edfread`, `edfinfo` (EDF file support)
-- `findpeaks`
-- `pwelch`
-- `butter`, `filtfilt`
-- `interp1`
-- `smoothdata`
-- `zscore`
+- `findpeaks`, `pwelch`, `butter`, `filtfilt`
+- `interp1`, `smoothdata`
 
-No external toolboxes or third-party libraries are required.
+No external toolboxes or third-party libraries are required beyond the Signal
+Processing Toolbox. All other utilities (`zscore_safe`, `find_contiguous_blocks`)
+are implemented locally.
 
 ---
 
 ## Example Output
 
 The pipeline generates a set of complementary figures that summarize raw ECG,
-derived autonomic features, sleep staging, and nocturnal dipping behavior.
+derived autonomic features, sleep staging, and nocturnal dipping behaviour.
 
 ---
 
@@ -80,12 +87,9 @@ Raw ECG waveform (top) and epoch-level autonomic features (HR, RMSSD, SDNN,
 HF power, LF/HF ratio, and SNR) computed over fixed-length windows and displayed
 as synchronized time series.
 
-The bottom panel shows an MWT-aware hypnogram, where "?" epochs are treated
+The bottom panel shows an MWT-aware hypnogram, where `"?"` epochs are treated
 as baseline periods and subsequent epochs represent MWT trials with sleep
 or wake stages (AWAKE, STAGE 1–3, REM, UNSURE).
-
-This figure provides a holistic overview of signal quality, autonomic dynamics,
-and trial structure across the full recording.
 
 ---
 
@@ -98,11 +102,7 @@ Distribution of heart rate (left) and HRV (RMSSD; right) across sleep stages.
 Each point represents an epoch-level estimate, overlaid with boxplots to
 summarize central tendency and variability.
 
-These plots enable stage-resolved autonomic comparisons (e.g., wake vs NREM vs
-REM) and are suitable for group-level aggregation in downstream analyses.
-
 ---
-
 
 ### Figure 3. MWT Hypnogram (Baseline vs Trials)
 
@@ -110,31 +110,26 @@ REM) and are suitable for group-level aggregation in downstream analyses.
 
 **Figure 3.**  
 MWT hypnogram derived from PSG annotations and plotted as a stage-resolved
-timeline. Baseline periods ("?") are explicitly labeled as BASELINE, while
+timeline. Baseline periods (`"?"`) are explicitly labelled as BASELINE, while
 trial periods are shown by sleep stage.
 
-This visualization highlights the block structure of the MWT protocol,
-where baseline segments precede each trial.
+---
 
 ### Figure 4. Heart Rate and HRV by MWT Stage
 
 ![Figure 4](assets/Figure4.png)
 
 **Figure 4.**  
-
 Distribution of heart rate (left) and HRV (RMSSD; right) across MWT stages,
-including BASELINE, AWAKE, and sleep stages. Each point represents an
-epoch-level estimate, overlaid with boxplots to summarize central tendency and
-variability.
+including BASELINE, AWAKE, and sleep stages. Each point is an epoch-level
+estimate, overlaid with boxplots summarizing central tendency and variability.
 
-These plots support stage-resolved autonomic comparisons and are suitable for
-within-subject or group-level analyses.
-
+---
 
 ## Methodological Notes (MWT-Specific)
 
 - Baseline periods are identified using `"?"` annotations in the hypnogram.
-- Each baseline block is paired exclusively with the **immediately following MWT trial**, yielding block-wise heart rate (HR) change estimates.
+- Each baseline block is paired exclusively with the **immediately following MWT trial**, yielding block-wise HR change estimates.
 - Baseline–trial comparisons are strictly confined within each block and never span multiple baseline–trial cycles, ensuring temporal and physiological validity.
 - This block-wise design reflects standard Maintenance of Wakefulness Test (MWT) protocols, which consist of repeated quiet-rest baselines followed by nap opportunities.
 
@@ -142,6 +137,38 @@ within-subject or group-level analyses.
 
 ## Usage
 
-### 1. Add utilities to MATLAB path
+### 1. Set paths in `main.m`
+
+Open `main.m` and update the two path variables to point to your EDF and
+hypnogram files:
+
+```matlab
+edf_path = "path/to/your/recording.edf";
+h_path   = "path/to/your/hypnogram.txt";
+```
+
+The subject ID is derived automatically from the first four characters of the
+EDF filename.
+
+### 2. Add utilities to the MATLAB path
+
 ```matlab
 addpath(fullfile(pwd, 'utils'));
+```
+
+### 3. Run the pipeline
+
+```matlab
+run main.m
+```
+
+This will:
+1. Load the raw ECG signal and sleep stage annotations
+2. Run peak-detection debugging on a randomly selected epoch
+3. Generate and save all four figures to `figures/<subject_id>/`
+
+---
+
+## Contact
+
+For questions or feedback: murat.kucukosmanoglu@dprime.ai
